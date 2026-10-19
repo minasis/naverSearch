@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+
+  - repo: local
+    hooks:
+      - id: python-unittest
+        name: python-unittest
+        entry: python -m unittest discover tests
+        language: system
+        pass_filenames: false
+        always_run: true
