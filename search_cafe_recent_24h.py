@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 import html
 import requests
 import pandas as pd
@@ -26,6 +27,7 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500, exclude
     }
 
     items = []
+    seen_links = set()
     start = 1
     page_size = 30
 
@@ -37,7 +39,14 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500, exclude
 
         try:
             res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code != 200:
+            if res.status_code == 403:
+                print("  - 일시적 요청 제한 감지, 2초 대기 후 재시도...")
+                time.sleep(2.0)
+                res = requests.get(url, headers=headers, timeout=10)
+                if res.status_code != 200:
+                    print(f"[오류] 재시도 실패: HTTP {res.status_code}")
+                    break
+            elif res.status_code != 200:
                 print(f"[오류] HTTP {res.status_code} 발생")
                 break
 
@@ -46,7 +55,13 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500, exclude
                 print("  - 더 이상 최근 24시간 이내 검색 결과가 없습니다.")
                 break
 
+            new_count = 0
             for item in parsed_items:
+                base_link = item["link"].split("?")[0]
+                if base_link in seen_links:
+                    continue
+                seen_links.add(base_link)
+
                 items.append({
                     "카페명": item["cafename"],
                     "작성시간": item["post_time"],
@@ -54,12 +69,18 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500, exclude
                     "본문요약": item["desc"],
                     "게시글링크": item["link"]
                 })
+                new_count += 1
 
                 if len(items) >= max_count:
                     break
 
+            if new_count == 0:
+                print("  - 중복 없는 새로운 게시글이 더 이상 없습니다. 수집을 완료합니다.")
+                break
+
             print(f"  - 현재 {len(items)}건 수집 중... (최근 작성: {items[-1]['작성시간']})")
             start += page_size
+            time.sleep(0.5)
 
             # 네이버 웹 검색 결과 상한 (start > 1000)
             if start > 1000:
