@@ -51,6 +51,74 @@ SAMPLE_HTML = """
 """
 
 
+SAMPLE_TRADE_HTML = """
+<div class="main_pack">
+  <ul class="lst_total">
+    <li class="bx">
+      <div class="view_wrap">
+        <div class="user_box">
+          <a class="name" href="https://cafe.naver.com/naviclub">네비게이션 사용자 모임</a>
+          <span class="sub">10분 전</span>
+        </div>
+        <div class="title_area">
+          <a class="title_link" href="https://cafe.naver.com/naviclub/1">티맵 길안내 오류 질문</a>
+        </div>
+        <div class="dsc_area">티맵 경로 재탐색이 이상합니다.</div>
+      </div>
+    </li>
+    <li class="bx">
+      <div class="view_wrap">
+        <div class="user_box">
+          <a class="name" href="https://cafe.naver.com/joonggonara">중고나라</a>
+          <span class="sub">15분 전</span>
+        </div>
+        <div class="title_area">
+          <a class="title_link" href="https://cafe.naver.com/joonggonara/2">티맵 HUD 기기 팝니다</a>
+        </div>
+        <div class="dsc_area">거치대 포함 판매합니다.</div>
+      </div>
+    </li>
+    <li class="bx">
+      <div class="view_wrap">
+        <div class="user_box">
+          <a class="name" href="https://cafe.naver.com/carclub">자동차 모임</a>
+          <span class="sub">30분 전</span>
+        </div>
+        <div class="title_area">
+          <a class="title_link" href="https://cafe.naver.com/carclub/3">티맵 공기계 스마트폰 팝니다</a>
+        </div>
+        <div class="dsc_area">네고 가능합니다. 택포 가격입니다.</div>
+      </div>
+    </li>
+    <li class="bx">
+      <div class="view_wrap">
+        <div class="user_box">
+          <a class="name" href="https://cafe.naver.com/carclub">자동차 모임</a>
+          <span class="sub">40분 전</span>
+        </div>
+        <div class="title_area">
+          <a class="title_link" href="https://cafe.naver.com/carclub/4">티맵 HUD 양도</a>
+        </div>
+        <div class="dsc_area">사용 안 해서 10만원에 판매합니다.</div>
+      </div>
+    </li>
+    <li class="bx">
+      <div class="view_wrap">
+        <div class="user_box">
+          <a class="name" href="https://cafe.naver.com/avante">아반떼 동호회</a>
+          <span class="sub">50분 전</span>
+        </div>
+        <div class="title_area">
+          <a class="title_link" href="https://cafe.naver.com/avante/5">티맵 안드로이드 오토 연결 후기</a>
+        </div>
+        <div class="dsc_area">HUD 연동해서 사용하니 정말 편리하네요.</div>
+      </div>
+    </li>
+  </ul>
+</div>
+"""
+
+
 class TestParser(unittest.TestCase):
     """네이버 카페 검색 결과 HTML 파싱 단위 테스트 스위트."""
 
@@ -92,6 +160,27 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parse_cafe_search_results(""), [])
         self.assertEqual(parse_cafe_search_results(None), [])
         self.assertEqual(parse_cafe_search_results("<div>검색 결과가 없습니다.</div>"), [])
+
+    def test_parse_cafe_search_results_exclude_trade_default(self):
+        """기본값(exclude_trade=True)으로 파싱 시 거래글이 자동 제외되는지 검증."""
+        # 기본 옵션 호출
+        items_default = parse_cafe_search_results(SAMPLE_TRADE_HTML)
+        self.assertEqual(len(items_default), 2)
+        titles = [item["title"] for item in items_default]
+        self.assertIn("티맵 길안내 오류 질문", titles)
+        self.assertIn("티맵 안드로이드 오토 연결 후기", titles)
+        self.assertNotIn("티맵 HUD 기기 팝니다", titles)
+
+        # 명시적 exclude_trade=True 호출
+        items_explicit_true = parse_cafe_search_results(SAMPLE_TRADE_HTML, exclude_trade=True)
+        self.assertEqual(len(items_explicit_true), 2)
+
+    def test_parse_cafe_search_results_include_trade_explicit(self):
+        """exclude_trade=False 전달 시 거래글도 모두 포함되어 파싱되는지 검증."""
+        items = parse_cafe_search_results(SAMPLE_TRADE_HTML, exclude_trade=False)
+        self.assertEqual(len(items), 5)
+        cafes = [item["cafename"] for item in items]
+        self.assertIn("중고나라", cafes)
 
 
 if __name__ == '__main__':

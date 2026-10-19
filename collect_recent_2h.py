@@ -14,9 +14,9 @@ if sys.stdout.encoding != 'utf-8':
     except Exception:
         pass
 
-from utils import is_trade_post, is_within_hours, is_within_2_hours, parse_cafe_search_results
+from utils import is_within_hours, is_within_2_hours, parse_cafe_search_results
 
-def collect_recent_2h_cafe(query: str = "티맵"):
+def collect_recent_2h_cafe(query: str = "티맵", exclude_trade: bool = True):
     session = requests.Session()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -31,7 +31,8 @@ def collect_recent_2h_cafe(query: str = "티맵"):
     page_size = 30
     stop_scraping = False
 
-    print(f"\n[수집 시작] 최근 2시간 이내 '{query}' 네이버 카페 글 수집 (거래글 자동 제외)...")
+    filter_msg = " (거래글 자동 제외)" if exclude_trade else ""
+    print(f"\n[수집 시작] 최근 2시간 이내 '{query}' 네이버 카페 글 수집{filter_msg}...")
 
     while not stop_scraping:
         url = f"https://search.naver.com/search.naver?ssc=tab.cafe.all&query={requests.utils.quote(query)}&sort=date&nso=so:dd,p:1d&start={start}"
@@ -42,7 +43,7 @@ def collect_recent_2h_cafe(query: str = "티맵"):
                 print(f"[오류] HTTP {res.status_code} 발생")
                 break
 
-            parsed_items = parse_cafe_search_results(res.text)
+            parsed_items = parse_cafe_search_results(res.text, exclude_trade=exclude_trade)
             if not parsed_items:
                 print("  - 더 이상 검색 결과가 없습니다.")
                 break
@@ -71,10 +72,6 @@ def collect_recent_2h_cafe(query: str = "티맵"):
                         break
 
                 if not is_within_hours(post_time, max_hours=2):
-                    continue
-
-                # 거래글 제외 검사
-                if is_trade_post(cafename, title, desc):
                     continue
 
                 items.append({

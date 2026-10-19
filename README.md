@@ -14,7 +14,7 @@ naver_cafe_search/
 ├── tests/                   # TDD 단위 테스트 스위트
 │   ├── __init__.py
 │   ├── test_filters.py      # 거래글/시간 파싱 단위 테스트 (10개)
-│   └── test_parser.py       # HTML 파서 단위 테스트 (3개)
+│   └── test_parser.py       # HTML 파서 및 거래글 제외 단위 테스트 (5개)
 ├── .pre-commit-config.yaml  # Git 커밋 전 코드 검증 및 테스트 강제 훅
 ├── .gitignore               # 데이터(.xlsx, .csv, .json) 및 가상환경 무시
 ├── requirements.txt         # 의존성 패키지 목록
@@ -57,7 +57,7 @@ python -m unittest discover tests -v
 # 필터링 로직 테스트
 python -m unittest tests/test_filters.py -v
 
-# HTML 파서 테스트
+# HTML 파서 및 거래글 제외 테스트
 python -m unittest tests/test_parser.py -v
 ```
 
@@ -79,15 +79,29 @@ is_recent = is_within_hours("1시간 전", max_hours=2)
 ```
 
 ### 2. HTML 파싱 (`parser.py`)
+검색 결과 파싱 시 거래글(중고거래 카페, 팝니다/삽니다 키워드, 구체적 가격 표기 등)을 기본적으로 자동 제외합니다.
+
 ```python
 from parser import parse_cafe_search_results
 
+# 거래글 자동 제외 (기본 동작: exclude_trade=True)
 items = parse_cafe_search_results(html_content)
 for item in items:
     print(item["cafename"], item["title"], item["post_time"])
+
+# 거래글 포함하여 전체 파싱이 필요한 경우
+all_items = parse_cafe_search_results(html_content, exclude_trade=False)
 ```
 
-### 3. 실시간 2시간 수집 스크립트 실행
-```bash
-python collect_recent_2h.py
-```
+### 3. 실시간 카페글 수집 스크립트 실행
+- **최근 2시간 수집**:
+  ```bash
+  python collect_recent_2h.py
+  ```
+  `collect_recent_2h_cafe(query="티맵", exclude_trade=True)` 함수를 통해 2시간 이내 비거래글만 수집하여 엑셀 및 구글 드라이브에 저장합니다.
+
+- **최근 24시간 수집**:
+  ```bash
+  python search_cafe_recent_24h.py
+  ```
+  `search_cafe_recent_24h(query="티맵", max_count=1500, exclude_trade=True)`를 통해 24시간 내 게시글을 거래글 제외 상태로 전수 수집합니다.

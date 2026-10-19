@@ -15,9 +15,10 @@ if sys.stdout.encoding != 'utf-8':
     except Exception:
         pass
 
-def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500):
+def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500, exclude_trade: bool = True):
     """
     네이버 카페 탭에서 최근 24시간 이내(p:1d) 최신순(so:dd) 게시글 끝까지 수집
+    - exclude_trade: 거래글 자동 제외 여부 (기본값 True)
     """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -28,7 +29,8 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500):
     start = 1
     page_size = 30
 
-    print(f"\n[검색 시작] 최근 24시간 이내 '{query}' 네이버 카페 글 전수 수집 시작...")
+    trade_text = " (거래글 자동 제외)" if exclude_trade else ""
+    print(f"\n[검색 시작] 최근 24시간 이내 '{query}' 네이버 카페 글 전수 수집 시작{trade_text}...")
 
     while len(items) < max_count:
         url = f"https://search.naver.com/search.naver?ssc=tab.cafe.all&query={requests.utils.quote(query)}&sort=date&nso=so:dd,p:1d&start={start}"
@@ -39,7 +41,7 @@ def search_cafe_recent_24h(query: str = "티맵", max_count: int = 1500):
                 print(f"[오류] HTTP {res.status_code} 발생")
                 break
 
-            parsed_items = parse_cafe_search_results(res.text)
+            parsed_items = parse_cafe_search_results(res.text, exclude_trade=exclude_trade)
             if not parsed_items:
                 print("  - 더 이상 최근 24시간 이내 검색 결과가 없습니다.")
                 break

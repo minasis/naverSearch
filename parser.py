@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+from filters import is_trade_post
 
 
 def parse_cafe_item(bx_elem) -> dict | None:
@@ -28,8 +29,13 @@ def parse_cafe_item(bx_elem) -> dict | None:
     }
 
 
-def parse_cafe_search_results(html_content: str) -> list[dict]:
-    """네이버 카페 검색 결과 HTML에서 게시글 목록 파싱."""
+def parse_cafe_search_results(html_content: str, exclude_trade: bool = True) -> list[dict]:
+    """네이버 카페 검색 결과 HTML에서 게시글 목록 파싱.
+
+    Args:
+        html_content (str): 파싱할 HTML 문자열
+        exclude_trade (bool): 거래글 자동 제외 여부 (기본값 True)
+    """
     if not html_content:
         return []
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -37,6 +43,9 @@ def parse_cafe_search_results(html_content: str) -> list[dict]:
     results = []
     for bx in bx_list:
         item = parse_cafe_item(bx)
-        if item:
-            results.append(item)
+        if not item:
+            continue
+        if exclude_trade and is_trade_post(item.get("cafename", ""), item.get("title", ""), item.get("desc", "")):
+            continue
+        results.append(item)
     return results
