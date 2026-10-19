@@ -6,6 +6,7 @@
 *.xlsx
 *.csv
 *.json
+downloads/
 
 # Python & caches
 __pycache__/

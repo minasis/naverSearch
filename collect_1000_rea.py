@@ -45,14 +45,13 @@ DEFAULT_HEADERS = {
 }
 
 
-# 엑셀(openpyxl) 비호환 제어문자 제거 정규식
-ILLEGAL_EXCEL_CHARS_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]')
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 
 
 def remove_illegal_excel_chars(val: object) -> object:
-    """엑셀에 저장할 수 없는 제어문자를 안전하게 제거."""
+    """엑셀(openpyxl)에 저장할 수 없는 비호환 제어문자 안전 제거."""
     if isinstance(val, str):
-        return ILLEGAL_EXCEL_CHARS_RE.sub('', val)
+        return ILLEGAL_CHARACTERS_RE.sub('', val)
     return val
 
 
@@ -62,7 +61,7 @@ def clean_text(raw_text: str | None) -> str:
         return ""
     text = re.sub(r'<[^>]+>', '', raw_text)
     text = html.unescape(text)
-    text = ILLEGAL_EXCEL_CHARS_RE.sub('', text)
+    text = ILLEGAL_CHARACTERS_RE.sub('', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -73,7 +72,7 @@ def clean_html_text(html_content: str | None) -> str:
         return ""
     soup = BeautifulSoup(html_content, 'html.parser')
     text = soup.get_text(separator=' ', strip=True)
-    text = ILLEGAL_EXCEL_CHARS_RE.sub('', text)
+    text = ILLEGAL_CHARACTERS_RE.sub('', text)
     text = re.sub(r'\s+', ' ', text).strip()
     if len(text) > 30000:
         text = text[:30000] + "... [본문 축약]"
@@ -476,13 +475,12 @@ def collect_1000_rea(
     out_xlsx = f"티맵_최근1000건_REA_{timestamp}.xlsx"
     out_csv = f"티맵_최근1000건_REA_{timestamp}.csv"
 
-    # 엑셀 저장 전 모든 문자열 컬럼의 비호환 제어문자 일괄 정제
-    for col in df.columns:
-        if df[col].dtype == object:
-            df[col] = df[col].apply(remove_illegal_excel_chars)
-
-    df.to_excel(out_xlsx, index=False)
+    # CSV 우선 안전 저장
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")
+
+    # 엑셀 저장 전 모든 셀의 비호환 제어문자 일괄 정제
+    df_excel = df.map(remove_illegal_excel_chars)
+    df_excel.to_excel(out_xlsx, index=False)
 
     # 구글 드라이브(독후감소스) 동시 백업
     gdrive_dir = r"G:\내 드라이브\독후감소스"
@@ -490,8 +488,8 @@ def collect_1000_rea(
         try:
             gdrive_xlsx = os.path.join(gdrive_dir, out_xlsx)
             gdrive_latest = os.path.join(gdrive_dir, "티맵_최근1000건_최신_REA.xlsx")
-            df.to_excel(gdrive_xlsx, index=False)
-            df.to_excel(gdrive_latest, index=False)
+            df_excel.to_excel(gdrive_xlsx, index=False)
+            df_excel.to_excel(gdrive_latest, index=False)
             print(f"[백업] 구글 드라이브 동시 백업 완료: {gdrive_latest}")
         except Exception as e:
             print(f"[경고] 구글 드라이브 백업 중 예외: {e}")
