@@ -12,12 +12,18 @@
    - **비동기 무한스크롤 토큰 연쇄 페이징 (Token-Chained Pagination)**: 네이버 카페 검색 개편에 맞추어 `s.search.naver.com` 비동기 엔드포인트를 세션 쿠키 및 `Referer` 헤더와 연동. 1페이지(30건) 제한을 극복하고 날짜 범위 내 수백~수천 건의 후보군을 연속 체이닝하여 30건 초과 전수 수집 지원.
    - **`ThreadPoolExecutor` 멀티스레드 병렬 수집 (5x Concurrency)**: 후보 게시글의 REA Article API 상세 조회 및 거래글 판별을 5개 워커 스레드로 병렬 처리하여 순차 수집 대비 최대 5배의 고속 성능 개선 및 결과 순서 보장.
    - REA Article API 상세 정보(초 단위 작성시간, 작성자, 댓글수, 본문) 조회 및 비공개/회원전용 글 자연스러운 폴백 연동.
+   - **첨부 이미지 URL 자동 추출 (`extract_images_from_html`)**: 본문 HTML 내 `<img>` 태그로부터 `data-url`, `data-src`, `data-lazy-src`, `src` 속성을 우선순위별로 분석하여 고화질 이미지 URL을 자동 수집. 1x1 트래킹 픽셀, 스티커/이모티콘, 공백 이미지를 자동 필터링하고 순서 보장 중복 제거.
+   - **엑셀 및 API 데이터 최적화**: API JSON 응답에는 `이미지수`(정수) 및 `이미지목록`(배열)을 온전히 제공하며, 엑셀(`.xlsx`) 저장 시에는 줄바꿈(`\n`) 구분자 텍스트로 자동 변환하여 셀 내 가독성 극대화.
    - **거래글 100% 자동 제외**: `saleInfo` 객체 검증 + 중고거래 카페/키워드/가격 패턴 복합 필터링.
    - **한국 표준시(KST, UTC+9) 고정 보장**: 서버 환경(Render, Railway, Linux 컨테이너 등)의 타임존(UTC)과 무관하게 모든 게시글 작성시간 및 파일명 타임스탬프를 명시적으로 KST로 변환.
 2. **모던 경량 웹 서비스 (`app.py` - Flask)**:
    - 깔끔하고 직관적인 모던 웹 UI (`templates/index.html`).
    - 검색어 입력(기본값: "티맵") 및 데이트피커 (시작일, 종료일, 최대 5일 검증 및 안내).
    - 비동기 검색 및 진행 스피너, **수집 결과 전수 표시 및 20건 단위 동적 페이지네이션** ([이전], 페이지 번호, [다음], 20건 이하 시 페이지네이션 자동 숨김).
+   - **게시글 본문 & 첨부 이미지 갤러리 모달 팝업**:
+     - 결과 목록에서 제목 클릭 또는 **[본문보기]** 버튼 클릭 시 모달 팝업을 통해 외부 이동 없이 게시글 전문(Full Text) 즉시 열람.
+     - 첨부 이미지가 있는 경우 `📷 N장` 배지 표시 및 모달 내 갤러리 그리드 표시 (`referrerpolicy="no-referrer"` 적용으로 403 차단 우회 및 원본 새 탭 확대 지원).
+     - ESC 키 또는 배경 클릭 시 즉시 닫히는 직관적인 UX.
    - 원클릭 엑셀(`.xlsx`) 수동 다운로드 및 실시간 미리보기.
 3. **클라우드 배포 호환**:
    - `Procfile` (`web: gunicorn app:app`), `wsgi.py`, `requirements.txt` 구비로 Render, Railway, PythonAnywhere 즉시 배포 가능.
@@ -41,10 +47,10 @@ naver_cafe_search/
 ├── collect_1000_rea.py      # 대량 REA 하이브리드 수집 스크립트
 ├── collect_recent_2h.py     # 최근 2시간 수집 스크립트
 ├── search_cafe_recent_24h.py# 최근 24시간 수집 스크립트
-├── tests/                   # TDD 단위 테스트 스위트 (68개 테스트)
+├── tests/                   # TDD 단위 테스트 스위트 (76개 테스트)
 │   ├── __init__.py
-│   ├── test_crawler_engine.py # 크롤링 엔진 및 무한스크롤/5일 범위/KST 변환 검증 테스트 (16개)
-│   ├── test_web_app.py      # Flask 웹 라우트 및 API 테스트 (9개)
+│   ├── test_crawler_engine.py # 크롤링 엔진 및 무한스크롤/5일 범위/KST 변환/이미지 추출 검증 테스트 (24개)
+│   ├── test_web_app.py      # Flask 웹 라우트 및 API/모달 렌더링 테스트 (9개)
 │   ├── test_article_api.py  # Article API 및 saleInfo 검증 단위 테스트 (14개)
 │   ├── test_filters.py      # 거래글/시간 파싱 단위 테스트 (10개)
 │   ├── test_parser.py       # HTML 파서 및 거래글 제외 단위 테스트 (5개)

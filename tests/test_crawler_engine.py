@@ -14,6 +14,8 @@ from crawler_engine import (
     format_timestamp,
     CrawlerEngine,
     search_and_collect,
+    extract_images_from_html,
+    format_df_for_excel,
 )
 
 
@@ -147,6 +149,62 @@ class TestCrawlerEngine(unittest.TestCase):
         self.assertEqual(item["댓글수"], 3)
         self.assertEqual(item["조회수"], 150)
         self.assertEqual(item["본문"], "티맵 이번 업데이트 아주 좋네요.")
+        self.assertEqual(item["이미지수"], 0)
+        self.assertEqual(item["이미지목록"], [])
+
+    @patch('crawler_engine.fetch_article_from_url')
+    def test_process_candidate_with_images_success(self, mock_fetch):
+        """본문에 첨부 이미지가 있는 커뮤니티 글의 이미지 수 및 목록 추출 검증."""
+        mock_fetch.return_value = {
+            "result": {
+                "article": {
+                    "subject": "티맵 HUD 장착 사진 공유합니다",
+                    "contentHtml": (
+                        '<p>HUD 연결 화면입니다.</p>'
+                        '<img src="https://cafeptthumb-phinf.pstatic.net/test1.jpg?type=w800">'
+                        '<img data-src="https://phinf.pstatic.net/test2.png">'
+                        '<img src="https://cafeptthumb-phinf.pstatic.net/test1.jpg?type=w800">'  # 중복
+                    ),
+                    "writeDate": 1729000000000,
+                    "writer": {"nick": "티맵유저"},
+                    "commentCount": 5,
+                    "readCount": 200,
+                    "menu": {"name": "포토갤러리"}
+                },
+                "saleInfo": None
+            }
+        }
+        engine = CrawlerEngine()
+        cand = {
+            "link": "https://cafe.naver.com/testcafe/456",
+            "cafename": "자동차동호회",
+            "title": "티맵 HUD 장착 사진 공유합니다",
+            "desc": "요약",
+            "post_time": "1시간 전"
+        }
+        item, is_trade = engine.process_candidate(cand)
+        self.assertFalse(is_trade)
+        self.assertIsNotNone(item)
+        self.assertEqual(item["이미지수"], 2)
+        self.assertEqual(item["이미지목록"], [
+            "https://cafeptthumb-phinf.pstatic.net/test1.jpg?type=w800",
+            "https://phinf.pstatic.net/test2.png"
+        ])
+
+    def test_process_candidate_fallback_images(self):
+        """회원전용 폴백 글의 이미지수(0) 및 빈 이미지목록([]) 검증."""
+        engine = CrawlerEngine()
+        cand = {
+            "link": "https://cafe.naver.com/privatecafe/999",
+            "cafename": "비공개카페",
+            "title": "비공개 글 제목",
+            "desc": "검색 스니펫 설명",
+            "post_time": "2026-10-18"
+        }
+        item, is_trade = engine.process_candidate(cand)
+        self.assertFalse(is_trade)
+        self.assertEqual(item["이미지수"], 0)
+        self.assertEqual(item["이미지목록"], [])
 
     # ----------------------------------------------------
     # 3. search_and_collect 통합 흐름 검증
@@ -361,6 +419,93 @@ class TestCrawlerEngine(unittest.TestCase):
         engine = CrawlerEngine(session=mock_session)
         cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
         self.assertEqual(len(cands), 3)
+
+    # ----------------------------------------------------
+    # 5. 이미지 추출 및 엑셀 포맷팅 단위 테스트
+    # ----------------------------------------------------
+    def test_extract_images_empty_or_none(self):
+        """None, 빈 문자열, 비문자열 입력 시 빈 리스트 반환 검증."""
+        self.assertEqual(extract_images_from_html(None), [])
+        self.assertEqual(extract_images_from_html(""), [])
+        self.assertEqual(extract_images_from_html(12345), [])  # type: ignore
+
+    def test_extract_images_various_attributes(self):
+        """data-url, data-src, data-lazy-src, src 등 다양한 이미지 속성 추출 검증."""
+        html_sample = """
+        <div>
+            <img src="https://cafeptthumb-phinf.pstatic.net/img_src.jpg">
+            <img data-src="https://phinf.pstatic.net/img_data_src.png">
+            <img data-url="https://postfiles.pstatic.net/img_data_url.jpg">
+            <img data-lazy-src="https://phinf.pstatic.net/img_lazy.webp">
+        </div>
+        """
+        images = extract_images_from_html(html_sample)
+        self.assertEqual(len(images), 4)
+        self.assertEqual(images[0], "https://cafeptthumb-phinf.pstatic.net/img_src.jpg")
+        self.assertEqual(images[1], "https://phinf.pstatic.net/img_data_src.png")
+        self.assertEqual(images[2], "https://postfiles.pstatic.net/img_data_url.jpg")
+        self.assertEqual(images[3], "https://phinf.pstatic.net/img_lazy.webp")
+
+    def test_extract_images_protocol_relative_and_unescape(self):
+        """// 로 시작하는 프로토콜 상대 URL을 https: 로 정규화하고 HTML 엔티티를 디코딩하는지 검증."""
+        html_sample = '<img src="//cafeptthumb-phinf.pstatic.net/test.jpg?a=1&amp;b=2">'
+        images = extract_images_from_html(html_sample)
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0], "https://cafeptthumb-phinf.pstatic.net/test.jpg?a=1&b=2")
+
+    def test_extract_images_deduplication_preserving_order(self):
+        """동일한 이미지 URL 중복 등장 시 최초 등장 순서를 유지하며 중복 제거 검증."""
+        html_sample = """
+        <img src="https://phinf.pstatic.net/pic1.jpg">
+        <img src="https://phinf.pstatic.net/pic2.jpg">
+        <img src="https://phinf.pstatic.net/pic1.jpg">
+        <img src="https://phinf.pstatic.net/pic3.jpg">
+        <img src="https://phinf.pstatic.net/pic2.jpg">
+        """
+        images = extract_images_from_html(html_sample)
+        self.assertEqual(images, [
+            "https://phinf.pstatic.net/pic1.jpg",
+            "https://phinf.pstatic.net/pic2.jpg",
+            "https://phinf.pstatic.net/pic3.jpg"
+        ])
+
+    def test_extract_images_filter_tracking_and_emojis(self):
+        """1x1 트래킹 픽셀, 스티커/이모티콘, 공백 이미지를 정확히 필터링하고 실제 사진만 유지하는지 검증."""
+        html_sample = """
+        <div>
+            <img src="https://ssl.pstatic.net/static/cafe/icon/blank.gif" width="1" height="1">
+            <img src="https://storep-phinf.pstatic.net/sticker/ogq_123.png">
+            <img src="https://static.naver.net/cafe/emoticon_456.gif">
+            <img src="https://ssl.pstatic.net/static/cafe/ico_arrow.gif">
+            <img src="blank.gif" data-src="https://cafeptthumb-phinf.pstatic.net/real_photo.jpg">
+            <img src="https://phinf.pstatic.net/good_car_photo.jpg">
+        </div>
+        """
+        images = extract_images_from_html(html_sample)
+        self.assertEqual(images, [
+            "https://cafeptthumb-phinf.pstatic.net/real_photo.jpg",
+            "https://phinf.pstatic.net/good_car_photo.jpg"
+        ])
+
+    def test_format_df_for_excel(self):
+        """format_df_for_excel 호출 시 이미지목록 리스트가 줄바꿈 문자열로 변환되는지 검증."""
+        df = pd.DataFrame([
+            {
+                "번호": 1,
+                "제목": "글1",
+                "이미지목록": ["https://img1.jpg", "https://img2.jpg"]
+            },
+            {
+                "번호": 2,
+                "제목": "글2",
+                "이미지목록": []
+            }
+        ])
+        excel_df = format_df_for_excel(df)
+        self.assertEqual(excel_df["이미지목록"].iloc[0], "https://img1.jpg\nhttps://img2.jpg")
+        self.assertEqual(excel_df["이미지목록"].iloc[1], "")
+        # 원본 DataFrame의 리스트 보존 확인
+        self.assertIsInstance(df["이미지목록"].iloc[0], list)
 
 
 if __name__ == '__main__':

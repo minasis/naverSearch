@@ -28,6 +28,9 @@ class TestWebApp(unittest.TestCase):
         self.assertIn("티맵", html)
         self.assertIn("tableTotalCount", html)
         self.assertIn("paginationContainer", html)
+        self.assertIn("postModal", html)
+        self.assertIn("modalContent", html)
+        self.assertIn("modalGallery", html)
 
     def test_search_missing_query(self):
         """검색어 누락 시 400 Bad Request 반환 검증."""
@@ -82,6 +85,8 @@ class TestWebApp(unittest.TestCase):
                 "댓글수": 1,
                 "조회수": 20,
                 "본문": "테스트 본문",
+                "이미지수": 2,
+                "이미지목록": ["https://img1.jpg", "https://img2.jpg"],
                 "게시글링크": "https://cafe.naver.com/t/1",
                 "수집방식": "REA"
             }

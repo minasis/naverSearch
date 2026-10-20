@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory, abort
 
-from crawler_engine import search_and_collect, validate_date_range
+from crawler_engine import search_and_collect, validate_date_range, format_df_for_excel
 
 app = Flask(__name__)
 
@@ -59,8 +59,9 @@ def api_search():
         filename = f"naver_cafe_{safe_query}_{start_str}_{end_str}_{timestamp}.xlsx"
         file_path = os.path.join(DOWNLOAD_FOLDER, filename)
 
-        # 엑셀 파일 저장
-        df.to_excel(file_path, index=False, engine="openpyxl")
+        # 엑셀 파일 저장 (이미지목록 열 리스트를 줄바꿈 문자열로 포맷팅)
+        excel_df = format_df_for_excel(df)
+        excel_df.to_excel(file_path, index=False, engine="openpyxl")
 
         attrs = getattr(df, "attrs", {})
         summary = {

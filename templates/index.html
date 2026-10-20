@@ -181,7 +181,7 @@
                                 <th class="px-4 py-3">제목</th>
                                 <th class="px-4 py-3">작성자</th>
                                 <th class="px-4 py-3 text-center">댓글/조회</th>
-                                <th class="px-4 py-3 text-center">링크</th>
+                                <th class="px-4 py-3 text-center">본문/원문</th>
                             </tr>
                         </thead>
                         <tbody id="previewBody" class="divide-y divide-slate-100">
@@ -195,6 +195,71 @@
                     <div id="paginationSummary" class="text-xs text-slate-500 order-2 sm:order-1"></div>
                     <div id="paginationButtons" class="inline-flex items-center gap-1 order-1 sm:order-2"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post Detail Modal -->
+    <div id="postModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4 bg-white sticky top-0 z-10">
+                <div class="space-y-1 min-w-0 flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="modalCafe" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"></span>
+                        <span id="modalBoard" class="text-xs text-slate-500 font-medium"></span>
+                        <span id="modalMethod" class="text-[11px] text-slate-400"></span>
+                    </div>
+                    <h3 id="modalTitle" class="text-lg md:text-xl font-bold text-slate-900 leading-snug break-words"></h3>
+                </div>
+                <button type="button" onclick="closePostModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition shrink-0 cursor-pointer" aria-label="닫기">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Meta Bar -->
+            <div class="px-6 py-2.5 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-600 gap-3">
+                <div class="flex flex-wrap items-center gap-4">
+                    <span><i class="fa-solid fa-user text-slate-400 mr-1"></i> <strong id="modalAuthor" class="text-slate-700"></strong></span>
+                    <span><i class="fa-regular fa-clock text-slate-400 mr-1"></i> <span id="modalTime"></span></span>
+                    <span><i class="fa-regular fa-comment-dots text-slate-400 mr-1"></i> 댓글 <strong id="modalComments" class="text-slate-700">0</strong></span>
+                    <span><i class="fa-regular fa-eye text-slate-400 mr-1"></i> 조회 <strong id="modalViews" class="text-slate-700">0</strong></span>
+                </div>
+                <a id="modalExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 font-semibold hover:underline">
+                    <span>네이버 카페 원문 열기</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </a>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="overflow-y-auto p-6 space-y-4 flex-1">
+                <!-- Full Content Text -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-align-left text-emerald-600"></i> 본문 내용
+                    </h4>
+                    <div id="modalContent" class="whitespace-pre-wrap text-slate-800 leading-relaxed text-sm bg-slate-50 p-4 rounded-xl border border-slate-100 select-text"></div>
+                </div>
+
+                <!-- Attached Images Gallery -->
+                <div id="modalGallerySection" class="hidden">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                        <span class="flex items-center gap-1.5">
+                            <i class="fa-regular fa-images text-emerald-600"></i> 첨부 이미지 (<span id="modalImageCount">0</span>장)
+                        </span>
+                        <span class="text-[11px] text-slate-400 font-normal">클릭 시 새 탭에서 원본 보기</span>
+                    </h4>
+                    <div id="modalGallery" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <!-- Injected by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-end">
+                <button type="button" onclick="closePostModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                    닫기
+                </button>
             </div>
         </div>
     </div>
@@ -368,21 +433,38 @@
             const pageData = currentResults.slice(startIdx, endIdx);
 
             pageData.forEach((row, idx) => {
+                const globalIdx = startIdx + idx;
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition";
+                tr.className = "hover:bg-slate-50/80 transition";
+
+                const imgCount = Number(row.이미지수) || (Array.isArray(row.이미지목록) ? row.이미지목록.length : 0);
+                const imgBadge = imgCount > 0
+                    ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 ml-1.5 shrink-0" title="첨부 이미지 ${imgCount}장"><i class="fa-regular fa-image"></i> ${imgCount}장</span>`
+                    : '';
+
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-semibold text-slate-500">${row.번호 !== undefined ? row.번호 : (startIdx + idx + 1)}</td>
-                    <td class="px-4 py-3 text-xs whitespace-nowrap text-slate-500">${row.작성시간 || '-'}</td>
-                    <td class="px-4 py-3 text-xs font-medium text-slate-700 truncate max-w-[140px]">${row.카페명 || '-'}</td>
-                    <td class="px-4 py-3 font-medium text-slate-900 max-w-[280px] truncate" title="${escapeHtml(row.제목 || '')}">
-                        ${escapeHtml(row.제목 || '-')}
+                    <td class="px-4 py-3 font-semibold text-slate-500">${row.번호 !== undefined ? row.번호 : (globalIdx + 1)}</td>
+                    <td class="px-4 py-3 text-xs whitespace-nowrap text-slate-500">${escapeHtml(row.작성시간 || '-')}</td>
+                    <td class="px-4 py-3 text-xs font-medium text-slate-700 truncate max-w-[130px]" title="${escapeHtml(row.카페명 || '')}">${escapeHtml(row.카페명 || '-')}</td>
+                    <td class="px-4 py-3 max-w-[280px]">
+                        <div class="flex items-center min-w-0">
+                            <button type="button" onclick="openPostModal(${globalIdx})" class="text-left font-medium text-slate-900 hover:text-emerald-600 transition hover:underline truncate cursor-pointer shrink" title="${escapeHtml(row.제목 || '')}">
+                                ${escapeHtml(row.제목 || '-')}
+                            </button>
+                            ${imgBadge}
+                        </div>
                     </td>
-                    <td class="px-4 py-3 text-xs text-slate-600">${escapeHtml(row.작성자 || '-')}</td>
-                    <td class="px-4 py-3 text-xs text-center text-slate-500">💬 ${row.댓글수 || 0} / 👁️ ${row.조회수 || 0}</td>
-                    <td class="px-4 py-3 text-center">
-                        <a href="${row.게시글링크}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-800 text-xs font-semibold underline">
-                            보기
-                        </a>
+                    <td class="px-4 py-3 text-xs text-slate-600 truncate max-w-[100px]">${escapeHtml(row.작성자 || '-')}</td>
+                    <td class="px-4 py-3 text-xs text-center text-slate-500 whitespace-nowrap">💬 ${row.댓글수 || 0} / 👁️ ${row.조회수 || 0}</td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                        <div class="inline-flex items-center gap-1.5">
+                            <button type="button" onclick="openPostModal(${globalIdx})" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer" title="게시글 본문 및 이미지 상세 보기">
+                                <i class="fa-regular fa-file-lines"></i> 본문보기
+                            </button>
+                            <a href="${row.게시글링크}" target="_blank" rel="noopener noreferrer" class="p-1.5 text-slate-400 hover:text-emerald-600 transition" title="네이버 카페 원문 새창 열기">
+                                <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                            </a>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -499,6 +581,124 @@
             }
             pages.push(total);
             return pages;
+        }
+
+        // 게시글 본문 및 이미지 상세 모달 열기
+        function openPostModal(index) {
+            const item = currentResults[index];
+            if (!item) return;
+
+            document.getElementById('modalTitle').innerText = item.제목 || '(제목 없음)';
+            document.getElementById('modalCafe').innerText = item.카페명 || '네이버 카페';
+
+            const boardEl = document.getElementById('modalBoard');
+            if (item.게시판) {
+                boardEl.innerText = `> ${item.게시판}`;
+                boardEl.classList.remove('hidden');
+            } else {
+                boardEl.classList.add('hidden');
+            }
+
+            const methodEl = document.getElementById('modalMethod');
+            if (item.수집방식) {
+                methodEl.innerText = `[${item.수집방식}]`;
+            } else {
+                methodEl.innerText = '';
+            }
+
+            document.getElementById('modalAuthor').innerText = item.작성자 || '-';
+            document.getElementById('modalTime').innerText = item.작성시간 || '-';
+            document.getElementById('modalComments').innerText = item.댓글수 !== undefined ? item.댓글수 : 0;
+            document.getElementById('modalViews').innerText = item.조회수 !== undefined ? item.조회수 : 0;
+
+            const extLink = document.getElementById('modalExternalLink');
+            if (item.게시글링크) {
+                extLink.href = item.게시글링크;
+                extLink.classList.remove('hidden');
+            } else {
+                extLink.classList.add('hidden');
+            }
+
+            const contentEl = document.getElementById('modalContent');
+            contentEl.innerText = item.본문 || '(본문 내용이 없습니다.)';
+
+            // 이미지 갤러리 파싱
+            let images = [];
+            if (Array.isArray(item.이미지목록)) {
+                images = item.이미지목록;
+            } else if (typeof item.이미지목록 === 'string' && item.이미지목록.trim()) {
+                images = item.이미지목록.split('\n').map(s => s.trim()).filter(Boolean);
+            }
+
+            const gallerySection = document.getElementById('modalGallerySection');
+            const galleryContainer = document.getElementById('modalGallery');
+            const imageCountEl = document.getElementById('modalImageCount');
+            galleryContainer.innerHTML = '';
+
+            if (images && images.length > 0) {
+                imageCountEl.innerText = images.length;
+                images.forEach((url, i) => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    a.className = "group relative aspect-video sm:aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition shadow-sm block";
+
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = `첨부 이미지 ${i + 1}`;
+                    img.loading = "lazy";
+                    img.referrerPolicy = "no-referrer";
+                    img.className = "w-full h-full object-cover group-hover:scale-105 transition duration-300";
+                    img.onerror = function() {
+                        this.onerror = null;
+                        this.parentElement.innerHTML = '<div class="w-full h-full flex flex-col items-center justify-center p-3 text-center text-xs text-slate-400 bg-slate-100"><i class="fa-solid fa-image-slash text-base mb-1"></i>이미지 로드 불가</div>';
+                    };
+
+                    const overlay = document.createElement('div');
+                    overlay.className = "absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold gap-1.5";
+                    overlay.innerHTML = '<i class="fa-solid fa-magnifying-glass-plus text-sm drop-shadow"></i> <span>원본보기</span>';
+
+                    a.appendChild(img);
+                    a.appendChild(overlay);
+                    galleryContainer.appendChild(a);
+                });
+                gallerySection.classList.remove('hidden');
+            } else {
+                gallerySection.classList.add('hidden');
+            }
+
+            const modal = document.getElementById('postModal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 모달 닫기
+        function closePostModal() {
+            const modal = document.getElementById('postModal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+            document.body.style.overflow = '';
+        }
+
+        // ESC 키 및 배경 클릭 시 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('postModal');
+                if (modal && !modal.classList.contains('hidden')) {
+                    closePostModal();
+                }
+            }
+        });
+
+        const postModalEl = document.getElementById('postModal');
+        if (postModalEl) {
+            postModalEl.addEventListener('click', (e) => {
+                if (e.target === postModalEl) {
+                    closePostModal();
+                }
+            });
         }
 
         // 페이지 로드 시 초기화

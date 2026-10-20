@@ -44,9 +44,80 @@ COLUMNS = [
     "댓글수",
     "조회수",
     "본문",
+    "이미지수",
+    "이미지목록",
     "게시글링크",
     "수집방식",
 ]
+
+
+def extract_images_from_html(html_str: str | None) -> list[str]:
+    """HTML 본문에서 유효한 첨부 이미지 URL 목록을 추출 (중복 제거 및 순서 보장).
+
+    - <img> 태그의 data-url, data-src, data-lazy-src, data-original, src 속성 탐색
+    - 1x1 트래킹 픽셀, 기본 아이콘, 스티커/이모티콘, 공백 이미지 필터링
+    - naver cafe 이미지 CDN(pstatic.net, cafeptthumb, phinf 등) 보존
+    - 순서 보장 중복 제거
+    """
+    if not html_str or not isinstance(html_str, str):
+        return []
+
+    soup = BeautifulSoup(html_str, 'html.parser')
+    images = []
+    seen = set()
+
+    for img in soup.find_all('img'):
+        # 1x1 또는 0x0 추적 픽셀 필터링
+        w = str(img.get('width', '')).strip()
+        h = str(img.get('height', '')).strip()
+        if w in ('0', '1') or h in ('0', '1'):
+            continue
+
+        # 유효한 URL 속성 후보군 (data-url, data-src, data-lazy-src, src 순서)
+        candidate_urls = []
+        for attr in ('data-url', 'data-src', 'data-lazy-src', 'data-original', 'src'):
+            val = img.get(attr)
+            if val and isinstance(val, str) and val.strip():
+                candidate_urls.append(val.strip())
+
+        chosen_url = None
+        for raw_url in candidate_urls:
+            raw_url = html.unescape(raw_url).strip()
+            if raw_url.startswith('//'):
+                raw_url = 'https:' + raw_url
+
+            if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+                continue
+
+            lower_url = raw_url.lower()
+
+            # 트래킹 픽셀, 기본 아이콘, 스티커/이모티콘 필터링
+            ignore_keywords = [
+                'blank.gif', 'spacer.gif', 'pixel.gif', 'transparent.gif', '1x1',
+                '/static/cafe/icon', '/static/pstatic/', 'emoticon', 'sticker',
+                'ico_', 'btn_', 'spinner', 'loading'
+            ]
+            if any(k in lower_url for k in ignore_keywords):
+                continue
+
+            chosen_url = raw_url
+            break
+
+        if chosen_url and chosen_url not in seen:
+            seen.add(chosen_url)
+            images.append(chosen_url)
+
+    return images
+
+
+def format_df_for_excel(df: pd.DataFrame) -> pd.DataFrame:
+    """엑셀 저장을 위해 리스트 형태의 열(이미지목록 등)을 줄바꿈 문자열로 변환한 사본 반환."""
+    excel_df = df.copy()
+    if "이미지목록" in excel_df.columns:
+        excel_df["이미지목록"] = excel_df["이미지목록"].apply(
+            lambda x: "\n".join(x) if isinstance(x, (list, tuple)) else (str(x) if x else "")
+        )
+    return excel_df
 
 
 def clean_text(raw_text: str | None) -> str:
@@ -284,6 +355,8 @@ class CrawlerEngine:
             menu_info = art.get("menu", {})
             menu_name = clean_text(menu_info.get("name", "")) if isinstance(menu_info, dict) else ""
 
+            images = extract_images_from_html(content_html) if content_html else []
+
             return {
                 "번호": 0,
                 "작성시간": exact_time,
@@ -294,6 +367,8 @@ class CrawlerEngine:
                 "댓글수": comment_count,
                 "조회수": read_count,
                 "본문": content_text,
+                "이미지수": len(images),
+                "이미지목록": images,
                 "게시글링크": url,
                 "수집방식": "REA Article API (상세)"
             }, False
@@ -309,6 +384,8 @@ class CrawlerEngine:
             "댓글수": 0,
             "조회수": 0,
             "본문": orig_desc,
+            "이미지수": 0,
+            "이미지목록": [],
             "게시글링크": url,
             "수집방식": "검색 요약 폴백 (회원전용)"
         }, False
