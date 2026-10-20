@@ -12,6 +12,7 @@ import html
 import re
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from typing import Callable
 
@@ -122,8 +123,9 @@ def validate_date_range(start_date: str, end_date: str, max_days: int = 5) -> tu
 class CrawlerEngine:
     """네이버 카페 REA 하이브리드 크롤링 엔진 클래스."""
 
-    def __init__(self, session: requests.Session | None = None):
+    def __init__(self, session: requests.Session | None = None, max_workers: int = 5):
         self.session = session or requests.Session()
+        self.max_workers = max_workers
         self.last_summary: dict = {}
 
     def fetch_candidates(
@@ -271,7 +273,8 @@ class CrawlerEngine:
         end_date: str,
         max_days: int = 5,
         progress_callback: Callable[[int, int, str], None] | None = None,
-        max_candidates: int = 1000
+        max_candidates: int = 1000,
+        max_workers: int | None = None
     ) -> pd.DataFrame:
         """지정된 기간(최대 5일)의 네이버 카페 검색 결과를 수집하고 DataFrame으로 반환."""
         start_dt, end_dt = validate_date_range(start_date, end_date, max_days=max_days)
@@ -289,21 +292,33 @@ class CrawlerEngine:
         total_candidates = len(candidates)
         valid_items = []
         trade_count = 0
+        workers = max_workers or self.max_workers
 
-        for idx, cand in enumerate(candidates, start=1):
-            item, is_trade = self.process_candidate(cand)
-            if is_trade:
-                trade_count += 1
-            elif item:
-                item["번호"] = len(valid_items) + 1
-                valid_items.append(item)
+        if total_candidates > 0:
+            results = [None] * total_candidates
+            completed_count = 0
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(self.process_candidate, cand): idx
+                    for idx, cand in enumerate(candidates)
+                }
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    results[idx] = future.result()
+                    completed_count += 1
+                    if progress_callback:
+                        progress_callback(
+                            completed_count,
+                            total_candidates,
+                            f"[{completed_count}/{total_candidates}] REA 분석 및 거래글 필터링 중..."
+                        )
 
-            if progress_callback:
-                progress_callback(
-                    idx,
-                    total_candidates,
-                    f"[{idx}/{total_candidates}] REA 분석 및 거래글 필터링 중..."
-                )
+            for item, is_trade in results:
+                if is_trade:
+                    trade_count += 1
+                elif item:
+                    item["번호"] = len(valid_items) + 1
+                    valid_items.append(item)
 
         if valid_items:
             df = pd.DataFrame(valid_items, columns=COLUMNS)
@@ -338,15 +353,17 @@ def search_and_collect(
     max_days: int = 5,
     progress_callback: Callable[[int, int, str], None] | None = None,
     max_candidates: int = 1000,
-    session: requests.Session | None = None
+    session: requests.Session | None = None,
+    max_workers: int = 5
 ) -> pd.DataFrame:
     """search_and_collect 편의 함수."""
-    engine = CrawlerEngine(session=session)
+    engine = CrawlerEngine(session=session, max_workers=max_workers)
     return engine.search_and_collect(
         query=query,
         start_date=start_date,
         end_date=end_date,
         max_days=max_days,
         progress_callback=progress_callback,
-        max_candidates=max_candidates
+        max_candidates=max_candidates,
+        max_workers=max_workers
     )

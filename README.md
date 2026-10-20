@@ -9,6 +9,7 @@
 1. **기간 선택 크롤링 엔진 (`crawler_engine.py`)**:
    - 시작일~종료일 범위 지정 (최대 5일 기간 제한 및 클라이언트/서버 이중 검증).
    - 네이버 검색 날짜 범위 필터(`nso=so:dd,p:from{start}to{end}`)를 통한 정확한 기간별 수집.
+   - **`ThreadPoolExecutor` 멀티스레드 병렬 수집 (5x Concurrency)**: 후보 게시글의 REA Article API 상세 조회 및 거래글 판별을 5개 워커 스레드로 병렬 처리하여 순차 수집 대비 최대 5배의 고속 성능 개선 및 결과 순서 보장.
    - REA Article API 상세 정보(초 단위 작성시간, 작성자, 댓글수, 본문) 조회 및 비공개/회원전용 글 자연스러운 폴백 연동.
    - **거래글 100% 자동 제외**: `saleInfo` 객체 검증 + 중고거래 카페/키워드/가격 패턴 복합 필터링.
    - **한국 표준시(KST, UTC+9) 고정 보장**: 서버 환경(Render, Railway, Linux 컨테이너 등)의 타임존(UTC)과 무관하게 모든 게시글 작성시간 및 파일명 타임스탬프를 명시적으로 KST로 변환.
@@ -126,12 +127,13 @@ pre-commit run --all-files
 ```python
 from crawler_engine import search_and_collect
 
-# 5일 이내 기간 지정 검색 (100% 거래글 자동 제외)
+# 5일 이내 기간 지정 검색 (기본 max_workers=5 멀티스레드 병렬 수집, 100% 거래글 자동 제외)
 df = search_and_collect(
     query="티맵",
     start_date="2026-10-15",
     end_date="2026-10-19",
-    max_days=5
+    max_days=5,
+    max_workers=5
 )
 
 print(f"총 유효 게시글: {len(df)}건")
