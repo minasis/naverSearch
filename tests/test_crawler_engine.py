@@ -184,6 +184,184 @@ class TestCrawlerEngine(unittest.TestCase):
         self.assertEqual(df.attrs["valid_count"], 1)
         self.assertEqual(len(progress_calls), 4)
 
+    # ----------------------------------------------------
+    # 4. fetch_candidates 비동기 무한스크롤(s.search) 연쇄 수집 검증
+    # ----------------------------------------------------
+    def test_fetch_candidates_single_page_no_async_url(self):
+        """1페이지 결과만 있고 비동기 다음 페이지 URL이 없는 경우 1페이지만 정상 반환 후 종료 검증."""
+        mock_session = MagicMock()
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1">제목 1</a><a class="name">카페1</a></li>
+        """
+        mock_session.get.return_value = mock_res
+
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0]["title"], "제목 1")
+        self.assertEqual(mock_session.get.call_count, 1)
+
+    def test_fetch_candidates_token_chained_multi_page(self):
+        """s.search 무한스크롤 연쇄 토큰 페이징을 통해 30건을 초과하는 다중 페이지 수집 및 Referer 헤더 검증."""
+        mock_session = MagicMock()
+
+        # 1페이지 (HTML 내 &amp; 포함된 s.search URL 추출)
+        res_p1 = MagicMock()
+        res_p1.status_code = 200
+        res_p1.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1">글 1</a><a class="name">카페1</a></li>
+        <script>var next = "https://s.search.naver.com/p/cafe/48/search.naver?query=test&amp;start=31";</script>
+        """
+
+        # 2페이지 (JSON 응답 및 다음 페이지 3 URL 포함)
+        res_p2 = MagicMock()
+        res_p2.status_code = 200
+        res_p2.json.return_value = {
+            "collection": [{
+                "html": '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/2">글 2</a><a class="name">카페1</a></li>'
+            }],
+            "url": "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=61"
+        }
+        res_p2.text = ""
+
+        # 3페이지 (JSON 응답 및 더 이상 다음 URL 없음)
+        res_p3 = MagicMock()
+        res_p3.status_code = 200
+        res_p3.json.return_value = {
+            "collection": [{
+                "html": '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/3">글 3</a><a class="name">카페1</a></li>'
+            }],
+            "url": None
+        }
+        res_p3.text = ""
+
+        mock_session.get.side_effect = [res_p1, res_p2, res_p3]
+
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
+
+        self.assertEqual(len(cands), 3)
+        self.assertEqual([c["title"] for c in cands], ["글 1", "글 2", "글 3"])
+        self.assertEqual(mock_session.get.call_count, 3)
+
+        # 2페이지 호출 시 Referer 헤더 및 &amp; 치환 검증
+        call2_args, call2_kwargs = mock_session.get.call_args_list[1]
+        self.assertTrue(call2_args[0].startswith("https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=31"))
+        self.assertIn("Referer", call2_kwargs["headers"])
+        self.assertIn("search.naver.com", call2_kwargs["headers"]["Referer"])
+
+    def test_fetch_candidates_max_candidates_limit(self):
+        """max_candidates 목표 수량 도달 시 즉시 중단 검증."""
+        mock_session = MagicMock()
+        res_p1 = MagicMock()
+        res_p1.status_code = 200
+        res_p1.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1">글 1</a><a class="name">카페1</a></li>
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/2">글 2</a><a class="name">카페1</a></li>
+        <script>var next = "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=31";</script>
+        """
+        res_p2 = MagicMock()
+        res_p2.status_code = 200
+        res_p2.json.return_value = {
+            "collection": [{
+                "html": (
+                    '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/3">글 3</a><a class="name">카페1</a></li>'
+                    '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/4">글 4</a><a class="name">카페1</a></li>'
+                )
+            }],
+            "url": "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=61"
+        }
+        mock_session.get.side_effect = [res_p1, res_p2]
+
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates(
+            "티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), max_candidates=3, delay=0
+        )
+        self.assertEqual(len(cands), 3)
+        self.assertEqual([c["title"] for c in cands], ["글 1", "글 2", "글 3"])
+
+    def test_fetch_candidates_deduplication(self):
+        """페이지 간 중복 URL(쿼리스트링 차이 포함) 중복 제거 검증."""
+        mock_session = MagicMock()
+        res_p1 = MagicMock()
+        res_p1.status_code = 200
+        res_p1.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1?param=a">글 1</a><a class="name">카페1</a></li>
+        <script>var next = "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=31";</script>
+        """
+        res_p2 = MagicMock()
+        res_p2.status_code = 200
+        res_p2.json.return_value = {
+            "collection": [{
+                "html": (
+                    '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1?param=b">글 1 중복</a><a class="name">카페1</a></li>'
+                    '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/2">글 2 신규</a><a class="name">카페1</a></li>'
+                )
+            }],
+            "url": None
+        }
+        mock_session.get.side_effect = [res_p1, res_p2]
+
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
+        self.assertEqual(len(cands), 2)
+        self.assertEqual(cands[0]["title"], "글 1")
+        self.assertEqual(cands[1]["title"], "글 2 신규")
+
+    def test_fetch_candidates_fallback_on_network_error(self):
+        """후속 비동기 요청 실패 시 예외 없이 기수집된 후보군을 안전하게 반환하는지 검증."""
+        mock_session = MagicMock()
+        res_p1 = MagicMock()
+        res_p1.status_code = 200
+        res_p1.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1">글 1</a><a class="name">카페1</a></li>
+        <script>var next = "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=31";</script>
+        """
+        res_p2 = MagicMock()
+        res_p2.status_code = 500
+        mock_session.get.side_effect = [res_p1, res_p2]
+
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0]["title"], "글 1")
+
+    def test_fetch_candidates_next_url_from_regex_in_response_text(self):
+        """data['url']이 비어있어도 응답 텍스트 내 정규식으로 다음 페이지 URL을 추출하여 연속 수집 검증."""
+        mock_session = MagicMock()
+        res_p1 = MagicMock()
+        res_p1.status_code = 200
+        res_p1.text = """
+        <li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/1">글 1</a><a class="name">카페1</a></li>
+        <script>var next = "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=31";</script>
+        """
+        res_p2 = MagicMock()
+        res_p2.status_code = 200
+        res_p2.json.return_value = {
+            "collection": [{
+                "html": '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/2">글 2</a><a class="name">카페1</a></li>'
+            }],
+            "url": None
+        }
+        res_p2.text = '{"url": null, "next": "https://s.search.naver.com/p/cafe/48/search.naver?query=test&start=61"}'
+
+        res_p3 = MagicMock()
+        res_p3.status_code = 200
+        res_p3.json.return_value = {
+            "collection": [{
+                "html": '<li class="bx"><a class="title_link" href="https://cafe.naver.com/c1/3">글 3</a><a class="name">카페1</a></li>'
+            }],
+            "url": None
+        }
+        res_p3.text = "{}"
+
+        mock_session.get.side_effect = [res_p1, res_p2, res_p3]
+        engine = CrawlerEngine(session=mock_session)
+        cands = engine.fetch_candidates("티맵", datetime(2026, 10, 15), datetime(2026, 10, 15), delay=0)
+        self.assertEqual(len(cands), 3)
+
 
 if __name__ == '__main__':
     unittest.main()

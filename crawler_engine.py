@@ -136,28 +136,63 @@ class CrawlerEngine:
         max_candidates: int = 1000,
         delay: float = 0.1
     ) -> list[dict]:
-        """네이버 웹 검색 카페 탭에서 지정된 날짜 범위의 게시글 후보군 목록을 수집."""
+        """네이버 웹 검색 카페 탭에서 비동기 무한스크롤(s.search) 연동으로 후보군 목록을 수집."""
         start_nso = start_dt.strftime("%Y%m%d")
         end_nso = end_dt.strftime("%Y%m%d")
         nso = f"so:dd,p:from{start_nso}to{end_nso}"
 
         candidates = []
         seen_links = set()
-        start = 1
-        page_size = 30
 
-        while len(candidates) < max_candidates:
-            url = (
-                f"https://search.naver.com/search.naver?"
-                f"ssc=tab.cafe.all&query={urllib.parse.quote(query)}&sort=date&nso={nso}&start={start}"
-            )
+        page1_url = (
+            f"https://search.naver.com/search.naver?"
+            f"ssc=tab.cafe.all&query={urllib.parse.quote(query)}&sort=date&nso={nso}"
+        )
+
+        # 1. 1페이지 수집 및 초기 후보군 추출
+        try:
+            res = self.session.get(page1_url, headers=DEFAULT_HEADERS, timeout=10)
+            if res.status_code != 200:
+                return candidates
+
+            items = parse_cafe_search_results(res.text, exclude_trade=False)
+            for it in items:
+                link = it.get("link", "")
+                base_link = link.split("?")[0] if link else ""
+                if not base_link or base_link in seen_links:
+                    continue
+                seen_links.add(base_link)
+                candidates.append(it)
+                if len(candidates) >= max_candidates:
+                    return candidates
+
+            # 1페이지 HTML에서 s.search 비동기 무한스크롤 다음 페이지 URL 추출
+            match = re.search(r'https://s\.search\.naver\.com/p/cafe/\d+/search\.naver\?[^\s"\'<>]+', res.text)
+            next_url = html.unescape(match.group(0)) if match else None
+        except Exception:
+            return candidates
+
+        # 2. 2페이지 이상 후속 비동기 무한스크롤 페이지 연쇄 수집 (Token-Chained Pagination)
+        while next_url and len(candidates) < max_candidates:
+            time.sleep(delay)
             try:
-                res = self.session.get(url, headers=DEFAULT_HEADERS, timeout=10)
+                headers = {**DEFAULT_HEADERS, 'Referer': page1_url}
+                res = self.session.get(next_url, headers=headers, timeout=10)
                 if res.status_code != 200:
                     break
 
-                # 파서 호출 (초기 파싱 단계에서는 거래글도 포함하여 candidate로 수집한 뒤 REA 단계에서 정확히 집계)
-                items = parse_cafe_search_results(res.text, exclude_trade=False)
+                data = res.json()
+                collections = data.get("collection", [{}])
+                items_html = ""
+                if isinstance(collections, list) and collections and isinstance(collections[0], dict):
+                    items_html = collections[0].get("html", "")
+                elif isinstance(collections, dict):
+                    items_html = collections.get("html", "")
+
+                if not items_html:
+                    break
+
+                items = parse_cafe_search_results(items_html, exclude_trade=False)
                 if not items:
                     break
 
@@ -176,8 +211,20 @@ class CrawlerEngine:
                 if added == 0:
                     break
 
-                start += page_size
-                time.sleep(delay)
+                # 3페이지 이후 다음 URL 추출 (data['url'] 우선, 미존재 시 응답 텍스트 정규식 검색)
+                next_candidate = data.get("url")
+                if next_candidate:
+                    next_url = html.unescape(str(next_candidate))
+                    if next_url.startswith("//"):
+                        next_url = "https:" + next_url
+                    elif next_url.startswith("/"):
+                        next_url = "https://s.search.naver.com" + next_url
+                else:
+                    m = re.search(r'https://s\.search\.naver\.com/p/cafe/\d+/search\.naver\?[^\s"\'<>]+', res.text)
+                    next_url = html.unescape(m.group(0)) if m else None
+
+                if not next_url:
+                    break
             except Exception:
                 break
 
