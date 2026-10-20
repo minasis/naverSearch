@@ -45,8 +45,6 @@ naver_cafe_search/
 ├── parser.py                # 네이버 카페 검색 결과 HTML 파싱 모듈
 ├── utils.py                 # 모듈 통합 인터페이스
 ├── collect_1000_rea.py      # 대량 REA 하이브리드 수집 스크립트
-├── collect_recent_2h.py     # 최근 2시간 수집 스크립트
-├── search_cafe_recent_24h.py# 최근 24시간 수집 스크립트
 ├── tests/                   # TDD 단위 테스트 스위트 (76개 테스트)
 │   ├── __init__.py
 │   ├── test_crawler_engine.py # 크롤링 엔진 및 무한스크롤/5일 범위/KST 변환/이미지 추출 검증 테스트 (24개)
@@ -110,7 +108,7 @@ python app.py
 모든 기능은 엄격한 TDD(테스트 주도 개발) 단위 테스트를 통과하도록 작성되었습니다.
 
 ```bash
-# 전체 단위 테스트 실행 (68개 항목 100% Green)
+# 전체 단위 테스트 실행 (76개 항목 100% Green)
 python -m unittest discover tests -v
 
 # 크롤링 엔진 단위 테스트
