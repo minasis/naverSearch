@@ -74,13 +74,14 @@ def api_search():
             "download_url": f"/api/download/{filename}"
         }
 
-        # 상위 10건 미리보기 데이터 추출
-        preview_rows = df.head(10).to_dict(orient="records")
+        # 전체 수집 결과 데이터 추출
+        all_rows = df.to_dict(orient="records")
 
         return jsonify({
             "success": True,
             "summary": summary,
-            "preview": preview_rows
+            "preview": all_rows,
+            "items": all_rows
         }), 200
 
     except Exception as e:

@@ -23,8 +23,11 @@ class TestWebApp(unittest.TestCase):
         """메인 페이지 GET / 요청 시 200 응답 및 검색 UI 렌더링 검증."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        self.assertIn("네이버 카페", response.get_data(as_text=True))
-        self.assertIn("티맵", response.get_data(as_text=True))
+        html = response.get_data(as_text=True)
+        self.assertIn("네이버 카페", html)
+        self.assertIn("티맵", html)
+        self.assertIn("tableTotalCount", html)
+        self.assertIn("paginationContainer", html)
 
     def test_search_missing_query(self):
         """검색어 누락 시 400 Bad Request 반환 검증."""
@@ -113,6 +116,50 @@ class TestWebApp(unittest.TestCase):
         preview = data.get("preview", [])
         self.assertEqual(len(preview), 1)
         self.assertEqual(preview[0]["제목"], "티맵 테스트 글")
+
+    @patch('app.search_and_collect')
+    def test_search_all_rows_returned_without_truncation(self, mock_search):
+        """20건 이상의 결과도 10건으로 축소되지 않고 전수 반환되는지 검증."""
+        rows = [
+            {
+                "번호": i,
+                "작성시간": "2026-10-18 14:00:00",
+                "카페명": f"테스트카페_{i}",
+                "게시판": "자유",
+                "제목": f"티맵 테스트 글 {i}",
+                "작성자": f"유저{i}",
+                "댓글수": i,
+                "조회수": i * 10,
+                "본문": f"본문 {i}",
+                "게시글링크": f"https://cafe.naver.com/t/{i}",
+                "수집방식": "REA"
+            }
+            for i in range(1, 26)  # 25건
+        ]
+        mock_df = pd.DataFrame(rows)
+        mock_df.attrs = {
+            "query": "티맵",
+            "start_date": "2026-10-15",
+            "end_date": "2026-10-18",
+            "total_candidates": 30,
+            "trade_excluded": 5,
+            "valid_count": 25,
+        }
+        mock_search.return_value = mock_df
+
+        payload = {
+            "query": "티맵",
+            "start_date": "2026-10-15",
+            "end_date": "2026-10-18"
+        }
+        res = self.client.post('/api/search', json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        preview = data.get("preview", [])
+        self.assertEqual(len(preview), 25)
+        self.assertEqual(len(data.get("items", [])), 25)
+        self.assertEqual(preview[24]["제목"], "티맵 테스트 글 25")
 
     def test_download_file_not_found(self):
         """존재하지 않는 엑셀 파일 다운로드 시도 시 404 반환 검증."""
