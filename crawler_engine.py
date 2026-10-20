@@ -12,7 +12,7 @@ import html
 import re
 import time
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Callable
 
 import pandas as pd
@@ -71,13 +71,16 @@ def clean_html_text(html_content: str | None, max_len: int = 30000) -> str:
     return text
 
 
+KST = timezone(timedelta(hours=9))
+
+
 def format_timestamp(ts: int | float | None) -> str | None:
-    """밀리초(ms) 또는 초 단위 타임스탬프를 'YYYY-MM-DD HH:MM:SS' 형식으로 변환."""
+    """밀리초(ms) 또는 초 단위 타임스탬프를 한국 표준시(KST, UTC+9) 'YYYY-MM-DD HH:MM:SS' 형식으로 변환."""
     if not ts:
         return None
     try:
         sec = ts / 1000.0 if ts > 1e11 else float(ts)
-        return datetime.fromtimestamp(sec).strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.fromtimestamp(sec, tz=KST).strftime('%Y-%m-%d %H:%M:%S')
     except Exception:
         return None
 

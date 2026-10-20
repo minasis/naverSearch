@@ -5,8 +5,10 @@ import html
 import argparse
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+
+KST = timezone(timedelta(hours=9))
 
 # Windows 콘솔 인코딩 대응
 if sys.stdout.encoding != 'utf-8':
@@ -137,7 +139,7 @@ def main():
     df = pd.DataFrame(results)
 
     # 결과 파일 저장
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
     clean_query_filename = re.sub(r'[\/:*?"<>|]', '_', args.query)
 
     output_xlsx = f"카페검색_{clean_query_filename}_{timestamp}.xlsx"

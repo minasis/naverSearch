@@ -34,15 +34,13 @@ class TestCollect1000Rea(unittest.TestCase):
         self.assertTrue(result.endswith("[본문 축약]"))
 
     def test_format_timestamp(self):
-        # 1792416356553 ms -> 2026-10-19 22:25:56
+        # 1792416356553 ms -> 2026-10-19 22:25:56 (KST, UTC+9)
         res = format_timestamp(1792416356553)
-        self.assertIsNotNone(res)
-        self.assertTrue(re_match := res.startswith("2026-"))
+        self.assertEqual(res, "2026-10-19 22:25:56")
 
         # 초 단위 타임스탬프
         res_sec = format_timestamp(1792416356)
-        self.assertIsNotNone(res_sec)
-        self.assertTrue(res_sec.startswith("2026-"))
+        self.assertEqual(res_sec, "2026-10-19 22:25:56")
 
         # None 및 무효값
         self.assertIsNone(format_timestamp(None))

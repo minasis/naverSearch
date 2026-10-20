@@ -4,8 +4,10 @@ import sys
 import time
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
+
+KST = timezone(timedelta(hours=9))
 
 # Windows 콘솔 UTF-8 출력 대응
 if sys.stdout.encoding != 'utf-8':
@@ -102,7 +104,7 @@ def main():
 
     df = pd.DataFrame(items)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
     local_xlsx = f"티맵_최근2시간_카페글_{timestamp}.xlsx"
     df.to_excel(local_xlsx, index=False)
 

@@ -11,6 +11,7 @@
    - 네이버 검색 날짜 범위 필터(`nso=so:dd,p:from{start}to{end}`)를 통한 정확한 기간별 수집.
    - REA Article API 상세 정보(초 단위 작성시간, 작성자, 댓글수, 본문) 조회 및 비공개/회원전용 글 자연스러운 폴백 연동.
    - **거래글 100% 자동 제외**: `saleInfo` 객체 검증 + 중고거래 카페/키워드/가격 패턴 복합 필터링.
+   - **한국 표준시(KST, UTC+9) 고정 보장**: 서버 환경(Render, Railway, Linux 컨테이너 등)의 타임존(UTC)과 무관하게 모든 게시글 작성시간 및 파일명 타임스탬프를 명시적으로 KST로 변환.
 2. **모던 경량 웹 서비스 (`app.py` - Flask)**:
    - 깔끔하고 직관적인 모던 웹 UI (`templates/index.html`).
    - 검색어 입력(기본값: "티맵") 및 데이트피커 (시작일, 종료일, 최대 5일 검증 및 안내).
@@ -38,9 +39,9 @@ naver_cafe_search/
 ├── collect_1000_rea.py      # 대량 REA 하이브리드 수집 스크립트
 ├── collect_recent_2h.py     # 최근 2시간 수집 스크립트
 ├── search_cafe_recent_24h.py# 최근 24시간 수집 스크립트
-├── tests/                   # TDD 단위 테스트 스위트 (60개 테스트)
+├── tests/                   # TDD 단위 테스트 스위트 (61개 테스트)
 │   ├── __init__.py
-│   ├── test_crawler_engine.py # 크롤링 엔진 및 5일 범위 검증 테스트 (9개)
+│   ├── test_crawler_engine.py # 크롤링 엔진 및 5일 범위/KST 변환 검증 테스트 (10개)
 │   ├── test_web_app.py      # Flask 웹 라우트 및 API 테스트 (8개)
 │   ├── test_article_api.py  # Article API 및 saleInfo 검증 단위 테스트 (14개)
 │   ├── test_filters.py      # 거래글/시간 파싱 단위 테스트 (10개)
@@ -101,7 +102,7 @@ python app.py
 모든 기능은 엄격한 TDD(테스트 주도 개발) 단위 테스트를 통과하도록 작성되었습니다.
 
 ```bash
-# 전체 단위 테스트 실행 (60개 항목 100% Green)
+# 전체 단위 테스트 실행 (61개 항목 100% Green)
 python -m unittest discover tests -v
 
 # 크롤링 엔진 단위 테스트

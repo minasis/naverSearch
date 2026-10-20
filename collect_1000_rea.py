@@ -13,7 +13,7 @@ import sys
 import time
 import html
 import random
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -79,8 +79,11 @@ def clean_html_text(html_content: str | None) -> str:
     return text
 
 
+KST = timezone(timedelta(hours=9))
+
+
 def format_timestamp(ts: int | float | None) -> str | None:
-    """밀리초(ms) 또는 초 단위 타임스탬프를 'YYYY-MM-DD HH:MM:SS' 형식으로 변환."""
+    """밀리초(ms) 또는 초 단위 타임스탬프를 한국 표준시(KST, UTC+9) 'YYYY-MM-DD HH:MM:SS' 형식으로 변환."""
     if not ts:
         return None
     try:
@@ -88,17 +91,17 @@ def format_timestamp(ts: int | float | None) -> str | None:
             sec = ts / 1000.0
         else:
             sec = float(ts)
-        return datetime.fromtimestamp(sec).strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.fromtimestamp(sec, tz=KST).strftime('%Y-%m-%d %H:%M:%S')
     except Exception:
         return None
 
 
 def parse_relative_time_to_dt(time_str: str) -> datetime | None:
-    """작성시간 문자열(상대시간 또는 절대시간)을 datetime 객체로 변환 시도."""
+    """작성시간 문자열(상대시간 또는 절대시간)을 datetime 객체로 변환 시도 (KST 기준)."""
     if not time_str or time_str in ("-", "회원전용", "비공개"):
         return None
     time_str = time_str.strip()
-    now = datetime.now()
+    now = datetime.now(KST).replace(tzinfo=None)
 
     # 1. 'YYYY-MM-DD HH:MM:SS'
     try:
@@ -121,17 +124,17 @@ def parse_relative_time_to_dt(time_str: str) -> datetime | None:
     # 4. 'N분 전'
     m_min = re.search(r'(\d+)\s*분\s*전', time_str)
     if m_min:
-        return datetime.fromtimestamp(now.timestamp() - int(m_min.group(1)) * 60)
+        return now - timedelta(minutes=int(m_min.group(1)))
 
     # 5. 'N시간 전'
     m_hour = re.search(r'(\d+)\s*시간\s*전', time_str)
     if m_hour:
-        return datetime.fromtimestamp(now.timestamp() - int(m_hour.group(1)) * 3600)
+        return now - timedelta(hours=int(m_hour.group(1)))
 
     # 6. 'N일 전'
     m_day = re.search(r'(\d+)\s*일\s*전', time_str)
     if m_day:
-        return datetime.fromtimestamp(now.timestamp() - int(m_day.group(1)) * 86400)
+        return now - timedelta(days=int(m_day.group(1)))
 
     return None
 
@@ -152,7 +155,7 @@ def calculate_time_range(items: list[dict]) -> tuple[str, str, str]:
         if dt:
             valid_dts.append((dt, raw_str))
 
-    now = datetime.now()
+    now = datetime.now(KST).replace(tzinfo=None)
 
     def _format_diff(dt: datetime | None, fallback: str) -> str:
         if not dt:
@@ -471,7 +474,7 @@ def collect_1000_rea(
     existing_cols = [c for c in col_order if c in df.columns]
     df = df[existing_cols]
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
     out_xlsx = f"티맵_최근1000건_REA_{timestamp}.xlsx"
     out_csv = f"티맵_최근1000건_REA_{timestamp}.csv"
 

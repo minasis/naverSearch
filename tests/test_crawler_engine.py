@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from crawler_engine import (
     validate_date_range,
     parse_date_str,
+    format_timestamp,
     CrawlerEngine,
     search_and_collect,
 )
@@ -62,6 +63,18 @@ class TestCrawlerEngine(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             validate_date_range("2026-10-20", "2026-10-15", max_days=5)
         self.assertIn("시작일은 종료일보다 이전이어야 합니다", str(ctx.exception))
+
+    def test_format_timestamp_kst(self):
+        """서버 타임존(UTC)과 무관하게 KST(UTC+9)로 정확히 변환되는지 검증."""
+        # 1792416356553 ms = 2026-10-19 13:25:56 UTC -> 2026-10-19 22:25:56 KST
+        res = format_timestamp(1792416356553)
+        self.assertEqual(res, "2026-10-19 22:25:56")
+
+        res_sec = format_timestamp(1792416356)
+        self.assertEqual(res_sec, "2026-10-19 22:25:56")
+
+        self.assertIsNone(format_timestamp(None))
+        self.assertIsNone(format_timestamp("invalid"))
 
     # ----------------------------------------------------
     # 2. 거래글 제외 및 REA 상세 처리 검증

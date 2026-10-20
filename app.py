@@ -2,12 +2,14 @@
 
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory, abort
 
 from crawler_engine import search_and_collect, validate_date_range
 
 app = Flask(__name__)
+
+KST = timezone(timedelta(hours=9))
 
 # 엑셀 파일 저장 디렉터리 설정
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +53,7 @@ def api_search():
 
         # 안전한 엑셀 파일명 생성
         safe_query = re.sub(r'[\\/*?:"<>| ]+', '_', query)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
         start_str = start_dt.strftime("%Y%m%d")
         end_str = end_dt.strftime("%Y%m%d")
         filename = f"naver_cafe_{safe_query}_{start_str}_{end_str}_{timestamp}.xlsx"

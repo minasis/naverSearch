@@ -5,9 +5,11 @@ import time
 import html
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 from utils import parse_cafe_search_results
+
+KST = timezone(timedelta(hours=9))
 
 # Windows 콘솔 출력 UTF-8 대응
 if sys.stdout.encoding != 'utf-8':
@@ -104,7 +106,7 @@ def main():
 
     df = pd.DataFrame(items)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
     out_xlsx = f"티맵_최근24시간_카페글_{timestamp}.xlsx"
     out_csv = f"티맵_최근24시간_카페글_{timestamp}.csv"
 
