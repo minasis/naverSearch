@@ -342,14 +342,6 @@
 
                 resultCard.classList.remove('hidden');
 
-                // 자동 다운로드 트리거
-                const autoDownload = document.createElement('a');
-                autoDownload.href = sum.download_url;
-                autoDownload.download = sum.filename;
-                document.body.appendChild(autoDownload);
-                autoDownload.click();
-                document.body.removeChild(autoDownload);
-
             } catch (err) {
                 errorMsg.innerText = err.message;
                 errorCard.classList.remove('hidden');
