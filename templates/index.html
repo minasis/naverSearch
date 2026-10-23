@@ -367,9 +367,29 @@
                     })
                 });
 
-                const data = await response.json();
+                if (!response.ok) {
+                    let errMsg = `서버 응답 오류 (상태: ${response.status})`;
+                    if (response.status === 502 || response.status === 504 || response.status === 524) {
+                        errMsg = '서버 처리 시간(타임아웃)이 초과되었습니다. 대량 데이터 수집 중 발생한 현상이니 잠시 후 다시 시도해 주세요.';
+                    } else {
+                        try {
+                            const errData = await response.json();
+                            if (errData && errData.error) errMsg = errData.error;
+                        } catch (e) {
+                            // JSON 파싱 불가 시 상태 메시지 유지
+                        }
+                    }
+                    throw new Error(errMsg);
+                }
 
-                if (!response.ok || !data.success) {
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    throw new Error('서버 응답 데이터를 해석하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+                }
+
+                if (!data.success) {
                     throw new Error(data.error || '검색 요청 처리 중 오류가 발생했습니다.');
                 }
 
