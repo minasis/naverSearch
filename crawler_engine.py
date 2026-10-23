@@ -194,12 +194,12 @@ def validate_date_range(start_date: str, end_date: str, max_days: int = 5) -> tu
 class CrawlerEngine:
     """네이버 카페 REA 하이브리드 크롤링 엔진 클래스."""
 
-    def __init__(self, session: requests.Session | None = None, max_workers: int = 20):
+    def __init__(self, session: requests.Session | None = None, max_workers: int = 30):
         if session:
             self.session = session
         else:
             self.session = requests.Session()
-            adapter = requests.adapters.HTTPAdapter(pool_connections=40, pool_maxsize=40, max_retries=1)
+            adapter = requests.adapters.HTTPAdapter(pool_connections=50, pool_maxsize=50, max_retries=1)
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
         self.max_workers = max_workers
@@ -484,7 +484,7 @@ def search_and_collect(
     progress_callback: Callable[[int, int, str], None] | None = None,
     max_candidates: int = 1000,
     session: requests.Session | None = None,
-    max_workers: int = 20
+    max_workers: int = 30
 ) -> pd.DataFrame:
     """search_and_collect 편의 함수."""
     engine = CrawlerEngine(session=session, max_workers=max_workers)

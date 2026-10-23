@@ -43,14 +43,14 @@ def api_search():
         return jsonify({"success": False, "error": str(e)}), 400
 
     try:
-        # 크롤링 및 거래글 필터링 실행 (최대 300건 쾌속 수집, 타임아웃 방어)
+        # 크롤링 및 거래글 필터링 실행 (5일치 누락 없는 1,000건 전수 수집, 30개 병렬 가속)
         df = search_and_collect(
             query=query,
             start_date=start_date,
             end_date=end_date,
             max_days=5,
-            max_candidates=300,
-            max_workers=20
+            max_candidates=1000,
+            max_workers=30
         )
 
         # 안전한 엑셀 파일명 생성
