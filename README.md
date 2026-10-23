@@ -92,8 +92,8 @@ flowchart TD
 - **30건 제한 극복**: 네이버 카페 검색의 1페이지(기본 30건) 제한을 극복하기 위해 `s.search.naver.com` 비동기 엔드포인트를 세션 쿠키 및 `Referer` 헤더와 연동합니다.
 - **토큰 체이닝 (Token Chaining)**: 응답 JSON 내 `url` 파라미터와 토큰을 연속 체이닝하여 날짜 범위 내 수백~수천 건의 후보군을 끊김 없이 전수 수집합니다.
 
-### ⚡ ThreadPoolExecutor 10배속 멀티스레드 병렬 수집 & 타임아웃 방어
-- **초고속 병렬 처리**: 수집된 후보군 게시글의 REA Article API 상세 메타데이터 조회 및 필터링을 `ThreadPoolExecutor(max_workers=10)`을 통해 초고속 병렬 수행합니다.
+### ⚡ ThreadPoolExecutor 20배속 멀티스레드 병렬 수집 & 타임아웃 방어
+- **초고속 병렬 처리**: 수집된 후보군 게시글의 REA Article API 상세 메타데이터 조회 및 필터링을 `ThreadPoolExecutor(max_workers=20)`을 통해 초고속 병렬 수행합니다.
 - **3~5일 대량 데이터 타임아웃 방어**: Gunicorn 실행 타임아웃을 120초(`--timeout 120 --workers 2`)로 확장하고 병렬 처리량을 2배로 증대시켜, 3일 이상(수백 건) 수집 시 발생할 수 있는 502 Bad Gateway / 타임아웃 단절을 완벽히 차단합니다.
 
 ### 🖼️ 본문 전문 & 고화질 첨부 이미지 자동 추출 (`extract_images_from_html`)

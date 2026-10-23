@@ -182,7 +182,7 @@ def fetch_article_detail(
     req = session.get if session else requests.get
 
     try:
-        res = req(api_url, headers=headers, params=params, timeout=10)
+        res = req(api_url, headers=headers, params=params, timeout=4)
         if res.status_code == 200:
             return res.json()
         return None
