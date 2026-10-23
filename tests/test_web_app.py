@@ -46,17 +46,17 @@ class TestWebApp(unittest.TestCase):
         self.assertIn("검색어", data.get("error", ""))
 
     def test_search_exceed_max_days(self):
-        """5일 초과 기간 선택 시 400 Bad Request 및 에러 메시지 반환 검증."""
+        """30일 초과 기간 선택 시 400 Bad Request 및 에러 메시지 반환 검증."""
         payload = {
             "query": "티맵",
-            "start_date": "2026-10-10",
-            "end_date": "2026-10-18"  # 9일
+            "start_date": "2026-09-01",
+            "end_date": "2026-10-18"  # 48일 (> 30일)
         }
         res = self.client.post('/api/search', json=payload)
         self.assertEqual(res.status_code, 400)
         data = res.get_json()
         self.assertFalse(data.get("success"))
-        self.assertIn("최대 5일", data.get("error", ""))
+        self.assertIn("최대 30일", data.get("error", ""))
 
     def test_search_invalid_date_order(self):
         """시작일이 종료일보다 늦은 경우 400 Bad Request 반환 검증."""

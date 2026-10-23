@@ -52,12 +52,16 @@
                 <div class="space-y-2">
                     <div class="flex items-center justify-between">
                         <label class="block text-sm font-bold text-slate-700">
-                            <i class="fa-regular fa-calendar-days text-emerald-600 mr-1"></i> 검색 기간 (최대 5일 범위)
+                            <i class="fa-regular fa-calendar-days text-emerald-600 mr-1"></i> 검색 기간 (최대 30일 / 1천건 전수 수집)
                         </label>
-                        <div class="flex gap-1.5 text-xs">
+                        <div class="flex flex-wrap gap-1.5 text-xs">
                             <button type="button" onclick="setQuickDate(1)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 font-medium transition">오늘</button>
                             <button type="button" onclick="setQuickDate(3)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 font-medium transition">최근 3일</button>
-                            <button type="button" onclick="setQuickDate(5)" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-semibold transition">최근 5일 (최대)</button>
+                            <button type="button" onclick="setQuickDate(5)" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 font-medium transition">최근 5일</button>
+                            <button type="button" onclick="setQuickDate(7)" class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-semibold transition">최근 7일</button>
+                            <button type="button" onclick="setQuickMax()" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-bold transition flex items-center gap-1 shadow-sm">
+                                <i class="fa-solid fa-bolt text-indigo-500"></i> 최대 (1천건)
+                            </button>
                         </div>
                     </div>
 
@@ -86,7 +90,7 @@
 
                     <!-- Client-side Validation Helper -->
                     <div id="dateNotice" class="text-xs pt-1 flex items-center gap-1.5 text-slate-500">
-                        <i class="fa-solid fa-circle-info"></i> 시작일과 종료일을 포함하여 최대 5일까지 수집할 수 있습니다.
+                        <i class="fa-solid fa-circle-info"></i> 시작일과 종료일을 포함하여 최대 30일(또는 1,000건 한도)까지 전수 수집할 수 있습니다.
                     </div>
                 </div>
 
@@ -277,9 +281,23 @@
         const errorMsg = document.getElementById('errorMsg');
         const resultCard = document.getElementById('resultCard');
 
-        // 기본 날짜 초기화 (최근 5일: 4일 전 ~ 오늘)
+        // 기본 날짜 초기화 (최근 7일)
         function initDates() {
-            setQuickDate(5);
+            setQuickDate(7);
+        }
+
+        // 네이버 검색 엔진 허용 상한(최대 1,000건) 전수 수집 모드 (최근 30일 자동 설정)
+        function setQuickMax() {
+            const today = new Date();
+            const past = new Date();
+            past.setDate(today.getDate() - 29); // 최근 30일
+
+            endDateInput.value = formatDate(today);
+            startDateInput.value = formatDate(past);
+            validateDates();
+
+            dateNotice.className = "text-xs pt-1 flex items-center gap-1.5 text-indigo-600 font-semibold";
+            dateNotice.innerHTML = '<i class="fa-solid fa-bolt"></i> ⚡ <b>최대 (1천건) 모드 활성화</b>: 네이버 검색 상한인 최대 1,000건까지 전수 수집합니다.';
         }
 
         function formatDate(date) {
@@ -324,9 +342,9 @@
             const diffTime = eDate - sDate;
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-            if (diffDays > 5) {
+            if (diffDays > 30) {
                 dateNotice.className = "text-xs pt-1 flex items-center gap-1.5 text-rose-600 font-semibold";
-                dateNotice.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 검색 기간은 최대 5일까지만 가능합니다. (현재 선택: ${diffDays}일)`;
+                dateNotice.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 검색 기간은 최대 30일까지만 가능합니다. (현재 선택: ${diffDays}일)`;
                 submitBtn.disabled = true;
                 return false;
             }

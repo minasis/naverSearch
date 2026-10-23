@@ -38,7 +38,7 @@ def api_search():
         return jsonify({"success": False, "error": "시작일과 종료일을 모두 입력해 주세요."}), 400
 
     try:
-        start_dt, end_dt = validate_date_range(start_date, end_date, max_days=5)
+        start_dt, end_dt = validate_date_range(start_date, end_date, max_days=30)
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
@@ -48,7 +48,7 @@ def api_search():
             query=query,
             start_date=start_date,
             end_date=end_date,
-            max_days=5,
+            max_days=30,
             max_candidates=1000,
             max_workers=30
         )

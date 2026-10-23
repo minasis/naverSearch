@@ -170,7 +170,7 @@ def parse_date_str(date_str: str) -> datetime:
         raise ValueError(f"유효하지 않은 날짜 값입니다: '{date_str}'") from e
 
 
-def validate_date_range(start_date: str, end_date: str, max_days: int = 5) -> tuple[datetime, datetime]:
+def validate_date_range(start_date: str, end_date: str, max_days: int = 30) -> tuple[datetime, datetime]:
     """시작일과 종료일의 범위를 검증하고 datetime 튜플을 반환.
 
     - 시작일이 종료일보다 늦으면 ValueError.
@@ -401,7 +401,7 @@ class CrawlerEngine:
         query: str,
         start_date: str,
         end_date: str,
-        max_days: int = 5,
+        max_days: int = 30,
         progress_callback: Callable[[int, int, str], None] | None = None,
         max_candidates: int = 1000,
         max_workers: int | None = None
@@ -480,7 +480,7 @@ def search_and_collect(
     query: str,
     start_date: str,
     end_date: str,
-    max_days: int = 5,
+    max_days: int = 30,
     progress_callback: Callable[[int, int, str], None] | None = None,
     max_candidates: int = 1000,
     session: requests.Session | None = None,
